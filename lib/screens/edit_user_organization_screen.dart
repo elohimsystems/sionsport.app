@@ -61,6 +61,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
   List<Profile> _profiles = [];
   bool _profilesLoading = true;
   Set<int> _selectedProfileIds = <int>{};
+  Map<int, int> _selectedChildIds = {};
 
   @override
   void initState() {
@@ -107,7 +108,8 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
     try {
       final org = await _editService.getOrganization(entityId);
       final countries = await _locationService.getCountries();
-      final allProfiles = await _profileService.getProfilesByTarget('O');
+      final profilesFlat = await _profileService.getProfilesByTarget('O');
+      final allProfiles = Profile.buildTree(profilesFlat);
 
       if (mounted) {
         setState(() {
@@ -128,7 +130,17 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
           _orgLocalityText = org.locality ?? '';
 
           _profiles = allProfiles;
-          _selectedProfileIds = org.user?.profiles?.map((p) => p.id).toSet() ?? {};
+          final savedIds =
+              org.user?.profiles?.map((p) => p.id).toSet() ?? {};
+          _selectedProfileIds = savedIds
+              .where((id) =>
+                  !profilesFlat.any((p) => p.id == id && p.parentId != null))
+              .toSet();
+          _selectedChildIds = {
+            for (final p in profilesFlat)
+              if (p.parentId != null && savedIds.contains(p.id))
+                p.parentId!: p.id
+          };
           _profilesLoading = false;
 
           _countries = countries;
@@ -216,7 +228,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
         stateId: _selectedState?.id,
         logoBytes: _logoChanged ? _logoBytes : null,
         logoFilename: null,
-        profileIds: _selectedProfileIds.toList(),
+        profileIds: [..._selectedProfileIds, ..._selectedChildIds.values],
       ));
 
       if (!mounted) return;
@@ -522,37 +534,109 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                       const SizedBox(height: 8),
                       _profilesLoading
                           ? const Center(child: CircularProgressIndicator())
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ..._profiles.map((p) {
-                                  final id = p.id;
-                                  return CheckboxListTile(
-                                    value: _selectedProfileIds.contains(id),
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        if (checked == true) {
-                                          _selectedProfileIds.add(id);
-                                        } else {
-                                          _selectedProfileIds.remove(id);
-                                        }
-                                      });
-                                    },
-                                    title: Text(p.name),
-                                    controlAffinity: ListTileControlAffinity.leading,
-                                    contentPadding: EdgeInsets.zero,
-                                  );
-                                }),
-                                if (_selectedProfileIds.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      AppTranslations.of('select_profile'),
-                                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                          : () {
+                              final parentProfiles = _profiles.where((p) =>
+                                  p.parentId == null &&
+                                  p.children != null &&
+                                  p.children!.isNotEmpty).toList();
+                              final leafProfiles = _profiles.where((p) =>
+                                  p.parentId == null &&
+                                  (p.children == null || p.children!.isEmpty)).toList();
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ...leafProfiles.map((p) {
+                                    final id = p.id;
+                                    return CheckboxListTile(
+                                      value: _selectedProfileIds.contains(id),
+                                      onChanged: (checked) {
+                                        setState(() {
+                                          if (checked == true) {
+                                            _selectedProfileIds.add(id);
+                                          } else {
+                                            _selectedProfileIds.remove(id);
+                                          }
+                                        });
+                                      },
+                                      title: Text(p.name),
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      contentPadding: EdgeInsets.zero,
+                                    );
+                                  }),
+                                  ...parentProfiles.map((parent) {
+                                    final parentId = parent.id;
+                                    final isParentSelected = _selectedProfileIds.contains(parentId);
+                                    final selectedChildId = _selectedChildIds[parentId];
+                                    final isAnySelected = isParentSelected || selectedChildId != null;
+                                    final childrenEnabled = isAnySelected;
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        CheckboxListTile(
+                                          value: isAnySelected,
+                                          tristate: false,
+                                          onChanged: (checked) {
+                                            setState(() {
+                                              if (checked == true) {
+                                                _selectedProfileIds.add(parentId);
+                                              } else {
+                                                _selectedProfileIds.remove(parentId);
+                                                _selectedChildIds.remove(parentId);
+                                              }
+                                            });
+                                          },
+                                          title: Text(parent.name),
+                                          controlAffinity: ListTileControlAffinity.leading,
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 32),
+                                          child: Wrap(
+                                            spacing: 8,
+                                            runSpacing: 4,
+                                            children: parent.children!.map((child) {
+                                              final childId = child.id;
+                                              return Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Radio<int>(
+                                                    value: childId,
+                                                    groupValue: selectedChildId ?? parentId,
+                                                    onChanged: childrenEnabled
+                                                        ? (value) {
+                                                            setState(() {
+                                                              _selectedProfileIds.remove(parentId);
+                                                              _selectedChildIds[parentId] = value!;
+                                                            });
+                                                          }
+                                                        : null,
+                                                  ),
+                                                  Text(
+                                                    child.name,
+                                                    style: TextStyle(
+                                                      color: childrenEnabled ? null : Colors.grey,
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }),
+                                  if (_selectedProfileIds.isEmpty && _selectedChildIds.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        AppTranslations.of('select_profile'),
+                                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                                      ),
                                     ),
-                                  ),
-                              ],
-                            ),
+                                ],
+                              );
+                            }(),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
