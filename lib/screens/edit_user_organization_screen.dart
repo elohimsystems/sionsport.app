@@ -1,6 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../config/api_config.dart';
+import '../config/app_routes.dart';
+import '../models/location.dart';
+import '../models/profile.dart';
+import '../dtos/auth_request.dart';
+import '../dtos/organization_request.dart';
 import '../services/edit_service.dart';
 import '../services/location_service.dart';
 import '../services/profile_service.dart';
@@ -44,15 +50,15 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
   bool _saving = false;
   int? _entityId;
 
-  List<Map<String, dynamic>> _countries = [];
-  Map<String, dynamic>? _selectedCountry;
-  List<Map<String, dynamic>> _states = [];
-  Map<String, dynamic>? _selectedState;
-  List<Map<String, dynamic>> _localities = [];
+  List<Country> _countries = [];
+  Country? _selectedCountry;
+  List<GeoState> _states = [];
+  GeoState? _selectedState;
+  List<Locality> _localities = [];
   String? _selectedLocality;
   String _orgLocalityText = '';
 
-  List<Map<String, dynamic>> _profiles = [];
+  List<Profile> _profiles = [];
   bool _profilesLoading = true;
   Set<int> _selectedProfileIds = <int>{};
 
@@ -105,46 +111,41 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
 
       if (mounted) {
         setState(() {
-          _existingLogo = org['logo'] as String?;
+          _existingLogo = org.logo;
 
-          final userData = org['user'] as Map<String, dynamic>?;
-          _emailController.text = userData?['email'] as String? ?? '';
-          _usernameController.text = userData?['username'] as String? ?? '';
-          _selectedLanguage = userData?['language'] as String? ?? 'en';
-          _selectedTimezone = userData?['timezone'] as String? ?? 'America/Caracas';
+          _emailController.text = org.user?.email ?? '';
+          _usernameController.text = org.user?.username ?? '';
+          _selectedLanguage = org.user?.language ?? 'en';
+          _selectedTimezone = org.user?.timezone ?? 'America/Caracas';
 
-          _orgCodeController.text = org['code'] as String? ?? '';
-          _orgLegalNameController.text = org['name'] as String? ?? '';
-          _orgAbbreviatedNameController.text = org['abbreviated_name'] as String? ?? '';
-          _orgPhoneController.text = org['phone'] as String? ?? '';
-          _orgWebsiteController.text = org['website'] as String? ?? '';
-          _orgAddressController.text = org['address'] as String? ?? '';
-          _orgGeolocationController.text = org['geolocation'] as String? ?? '';
-          _orgLocalityText = org['locality'] as String? ?? '';
+          _orgCodeController.text = org.code ?? '';
+          _orgLegalNameController.text = org.name ?? '';
+          _orgAbbreviatedNameController.text = org.abbreviated_name ?? '';
+          _orgPhoneController.text = org.phone ?? '';
+          _orgWebsiteController.text = org.website ?? '';
+          _orgAddressController.text = org.address ?? '';
+          _orgGeolocationController.text = org.geolocation ?? '';
+          _orgLocalityText = org.locality ?? '';
 
           _profiles = allProfiles;
-          final existingProfiles = (userData?['profiles'] as List<dynamic>?)
-              ?.map((p) => (p as Map<String, dynamic>)['id'] as int)
-              .toSet() ?? <int>{};
-          _selectedProfileIds = existingProfiles;
+          _selectedProfileIds = org.user?.profiles?.map((p) => p.id).toSet() ?? {};
           _profilesLoading = false;
 
           _countries = countries;
 
-          final stateData = org['state'] as Map<String, dynamic>?;
+          final stateData = org.state;
           if (stateData != null) {
-            final countryData = stateData['country'] as Map<String, dynamic>?;
-            final countryId = countryData?['id'] as int? ?? stateData['countryId'] as int?;
+            final countryId = stateData.country?.id ?? stateData.countryId;
             final matchedCountry = countryId != null
-                ? _countries.where((c) => c['id'] == countryId).firstOrNull
+                ? _countries.where((c) => c.id == countryId).firstOrNull
                 : null;
             if (matchedCountry != null) {
               _selectedCountry = matchedCountry;
-              _loadStates(matchedCountry['id'] as int).then((_) {
-                final state = _states.where((s) => s['id'] == stateData['id']).firstOrNull;
+              _loadStates(matchedCountry.id).then((_) {
+                final state = _states.where((s) => s.id == stateData.id).firstOrNull;
                 if (state != null) {
                   _selectedState = state;
-                  _loadLocalities(state['id'] as int);
+                  _loadLocalities(state.id);
                 }
               });
             }
@@ -198,7 +199,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
     setState(() => _saving = true);
 
     try {
-      await _editService.editOrganizationUser(
+      await _editService.editOrganizationUser(EditOrganizationRequest(
         userId: _entityId!,
         email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         language: _selectedLanguage,
@@ -212,11 +213,11 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
         address: _orgAddressController.text.trim().isEmpty ? null : _orgAddressController.text.trim(),
         geolocation: _orgGeolocationController.text.trim().isEmpty ? null : _orgGeolocationController.text.trim(),
         locality: (_selectedLocality ?? _orgLocalityText).isEmpty ? null : (_selectedLocality ?? _orgLocalityText),
-        stateId: _selectedState?['id'] as int?,
+        stateId: _selectedState?.id,
         logoBytes: _logoChanged ? _logoBytes : null,
         logoFilename: null,
         profileIds: _selectedProfileIds.toList(),
-      );
+      ));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -286,10 +287,10 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
 
     if (confirmed == true) {
       try {
-        await _editService.changePassword(
+        await _editService.changePassword(ChangePasswordRequest(
           currentPassword: currentController.text,
           newPassword: newController.text,
-        );
+        ));
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppTranslations.of('password_changed'))),
@@ -325,7 +326,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
         await _editService.deleteAccount();
         await TokenStorage.deleteToken();
         if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppTranslations.of('account_deleted'))),
         );
@@ -378,7 +379,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                                 backgroundImage: _logoBytes != null
                                     ? MemoryImage(_logoBytes!)
                                     : (_existingLogo != null
-                                        ? NetworkImage('http://localhost:3000/${_existingLogo!.replaceAll('\\', '/')}')
+                                        ? NetworkImage(ApiConfig.imageUrl(_existingLogo!))
                                         : null),
                                 child: _logoBytes == null && _existingLogo == null
                                     ? const Icon(Icons.business, size: 40)
@@ -525,7 +526,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 ..._profiles.map((p) {
-                                  final id = (p['id'] as num).toInt();
+                                  final id = p.id;
                                   return CheckboxListTile(
                                     value: _selectedProfileIds.contains(id),
                                     onChanged: (checked) {
@@ -537,7 +538,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                                         }
                                       });
                                     },
-                                    title: Text(p['name'] as String),
+                                    title: Text(p.name),
                                     controlAffinity: ListTileControlAffinity.leading,
                                     contentPadding: EdgeInsets.zero,
                                   );
@@ -649,7 +650,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<Map<String, dynamic>>(
+                      DropdownButtonFormField<Country>(
                         value: _selectedCountry,
                         decoration: InputDecoration(
                           labelText: AppTranslations.of('country'),
@@ -657,7 +658,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                           border: const OutlineInputBorder(),
                         ),
                         items: _countries.map((c) {
-                          final code = c['code'] as String? ?? '';
+                          final code = c.code;
                           return DropdownMenuItem(
                             value: c,
                             child: Row(
@@ -673,7 +674,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(c['name'] as String),
+                                Text(c.name),
                               ],
                             ),
                           );
@@ -687,12 +688,12 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                             _selectedLocality = null;
                           });
                           if (value != null) {
-                            _loadStates(value['id'] as int);
+                            _loadStates(value.id);
                           }
                         },
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<Map<String, dynamic>>(
+                      DropdownButtonFormField<GeoState>(
                         value: _selectedState,
                         decoration: InputDecoration(
                           labelText: AppTranslations.of('state'),
@@ -702,7 +703,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                         items: _states.map((s) {
                           return DropdownMenuItem(
                             value: s,
-                            child: Text(s['name'] as String),
+                            child: Text(s.name),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -712,7 +713,7 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                             _orgLocalityText = '';
                           });
                           if (value != null) {
-                            _loadLocalities(value['id'] as int);
+                            _loadLocalities(value.id);
                           }
                         },
                       ),
@@ -720,10 +721,10 @@ class _EditUserOrganizationScreenState extends State<EditUserOrganizationScreen>
                       Autocomplete<String>(
                         optionsBuilder: (textEditingValue) {
                           if (textEditingValue.text.isEmpty || _selectedState == null) {
-                            return _localities.map((l) => l['name'] as String);
+                            return _localities.map((l) => l.name);
                           }
                           return _localities
-                              .map((l) => l['name'] as String)
+                              .map((l) => l.name)
                               .where((name) => name.toLowerCase().contains(textEditingValue.text.toLowerCase()));
                         },
                         onSelected: (selection) {

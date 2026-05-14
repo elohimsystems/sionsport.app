@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'config/app_routes.dart';
 import 'widgets/user_menu.dart';
 import 'widgets/language_selector.dart';
 import 'screens/login_screen.dart';
@@ -17,6 +18,7 @@ void main() {
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -46,19 +48,19 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           routes: {
-            '/home': (context) => MainScreen(),
-            '/login': (context) => const LoginScreen(),
-            '/register-type': (context) => const RegisterTypeScreen(),
-            '/register-user-person': (context) {
+            AppRoutes.home: (context) => MainScreen(),
+            AppRoutes.login: (context) => const LoginScreen(),
+            AppRoutes.registerType: (context) => const RegisterTypeScreen(),
+            AppRoutes.registerPerson: (context) {
               final type = ModalRoute.of(context)?.settings.arguments as String?;
               return RegisterUserPersonScreen(registerType: type);
             },
-            '/register-user-organization': (context) {
+            AppRoutes.registerOrganization: (context) {
               final type = ModalRoute.of(context)?.settings.arguments as String?;
               return RegisterUserOrganizationScreen(registerType: type);
             },
-            '/edit-person': (context) => const EditUserPersonScreen(),
-            '/edit-organization': (context) => const EditUserOrganizationScreen(),
+            AppRoutes.editPerson: (context) => const EditUserPersonScreen(),
+            AppRoutes.editOrganization: (context) => const EditUserOrganizationScreen(),
           },
         );
       },

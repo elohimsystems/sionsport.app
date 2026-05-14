@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../dtos/organization_request.dart';
+import '../models/location.dart';
+import '../models/profile.dart';
 import '../services/register_service.dart';
 import '../services/profile_service.dart';
 import '../services/location_service.dart';
@@ -39,7 +42,7 @@ class _RegisterUserOrganizationScreenState
   String? _logoFilename;
 
   final Set<int> _selectedProfileIds = <int>{};
-  List<Map<String, dynamic>> _profiles = [];
+  List<Profile> _profiles = [];
   bool _profilesLoading = true;
 
   bool _loading = false;
@@ -47,11 +50,11 @@ class _RegisterUserOrganizationScreenState
   bool _obscureConfirm = true;
 
   final _locationService = LocationService();
-  List<Map<String, dynamic>> _countries = [];
-  Map<String, dynamic>? _selectedCountry;
-  List<Map<String, dynamic>> _states = [];
-  Map<String, dynamic>? _selectedState;
-  List<Map<String, dynamic>> _localities = [];
+  List<Country> _countries = [];
+  Country? _selectedCountry;
+  List<GeoState> _states = [];
+  GeoState? _selectedState;
+  List<Locality> _localities = [];
   String? _selectedLocality;
   String _orgLocalityText = '';
 
@@ -181,7 +184,7 @@ class _RegisterUserOrganizationScreenState
     setState(() => _loading = true);
 
     try {
-      await _registerService.registerOrganization(
+      await _registerService.registerOrganization(RegisterOrganizationRequest(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
         email: _emailController.text.trim(),
@@ -206,11 +209,11 @@ class _RegisterUserOrganizationScreenState
         logoBytes: _logoBytes,
         logoFilename: _logoFilename,
         locality: (_selectedLocality ?? _orgLocalityText).isEmpty ? null : (_selectedLocality ?? _orgLocalityText),
-        stateId: _selectedState?['id'] as int?,
+        stateId: _selectedState?.id,
         profileIds: _selectedProfileIds.join(','),
         language: _selectedLanguage,
         timezone: _selectedTimezone,
-      );
+      ));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -440,7 +443,7 @@ class _RegisterUserOrganizationScreenState
                           Text(AppTranslations.of('profiles'), style: const TextStyle(fontSize: 16)),
                           const SizedBox(height: 8),
                           ..._profiles.map((p) {
-                            final id = (p['id'] as num).toInt();
+                            final id = p.id;
                             return CheckboxListTile(
                               value: _selectedProfileIds.contains(id),
                               onChanged: (checked) {
@@ -452,7 +455,7 @@ class _RegisterUserOrganizationScreenState
                                   }
                                 });
                               },
-                              title: Text(p['name'] as String),
+                              title: Text(p.name),
                               controlAffinity: ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
                             );
@@ -557,7 +560,7 @@ class _RegisterUserOrganizationScreenState
                   ),
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<Map<String, dynamic>>(
+                DropdownButtonFormField<Country>(
                   value: _selectedCountry,
                   decoration: InputDecoration(
                     labelText: AppTranslations.of('country'),
@@ -565,7 +568,7 @@ class _RegisterUserOrganizationScreenState
                     border: const OutlineInputBorder(),
                   ),
                   items: _countries.map((c) {
-                    final code = c['code'] as String? ?? '';
+                    final code = c.code;
                     return DropdownMenuItem(
                       value: c,
                       child: Row(
@@ -581,7 +584,7 @@ class _RegisterUserOrganizationScreenState
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(c['name'] as String),
+                          Text(c.name),
                         ],
                       ),
                     );
@@ -595,12 +598,12 @@ class _RegisterUserOrganizationScreenState
                       _selectedLocality = null;
                     });
                     if (value != null) {
-                      _loadStates(value['id'] as int);
+                      _loadStates(value.id);
                     }
                   },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<Map<String, dynamic>>(
+                DropdownButtonFormField<GeoState>(
                   value: _selectedState,
                   decoration: InputDecoration(
                     labelText: AppTranslations.of('state'),
@@ -610,7 +613,7 @@ class _RegisterUserOrganizationScreenState
                   items: _states.map((s) {
                     return DropdownMenuItem(
                       value: s,
-                      child: Text(s['name'] as String),
+                      child: Text(s.name),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -620,7 +623,7 @@ class _RegisterUserOrganizationScreenState
                       _orgLocalityText = '';
                     });
                     if (value != null) {
-                      _loadLocalities(value['id'] as int);
+                      _loadLocalities(value.id);
                     }
                   },
                 ),
@@ -628,10 +631,10 @@ class _RegisterUserOrganizationScreenState
                 Autocomplete<String>(
                   optionsBuilder: (textEditingValue) {
                     if (textEditingValue.text.isEmpty || _selectedState == null) {
-                      return _localities.map((l) => l['name'] as String);
+                      return _localities.map((l) => l.name);
                     }
                     return _localities
-                        .map((l) => l['name'] as String)
+                        .map((l) => l.name)
                         .where((name) => name
                             .toLowerCase()
                             .contains(textEditingValue.text.toLowerCase()));
