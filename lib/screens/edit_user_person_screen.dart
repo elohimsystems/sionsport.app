@@ -1,6 +1,13 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../config/api_config.dart';
+import '../config/app_routes.dart';
+import '../models/discipline.dart';
+import '../models/location.dart';
+import '../models/profile.dart';
+import '../dtos/auth_request.dart';
+import '../dtos/person_request.dart';
 import '../services/edit_service.dart';
 import '../services/location_service.dart';
 import '../services/profile_service.dart';
@@ -43,19 +50,19 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
   bool _saving = false;
   int? _entityId;
 
-  List<Map<String, dynamic>> _countries = [];
-  Map<String, dynamic>? _selectedCountry;
-  List<Map<String, dynamic>> _states = [];
-  Map<String, dynamic>? _selectedState;
-  List<Map<String, dynamic>> _localities = [];
+  List<Country> _countries = [];
+  Country? _selectedCountry;
+  List<GeoState> _states = [];
+  GeoState? _selectedState;
+  List<Locality> _localities = [];
   String? _selectedLocality;
   String _localityText = '';
 
-  List<Map<String, dynamic>> _profiles = [];
+  List<Profile> _profiles = [];
   bool _profilesLoading = true;
   Set<int> _selectedProfileIds = <int>{};
 
-  List<Map<String, dynamic>> _allDisciplines = [];
+  List<Discipline> _allDisciplines = [];
   bool _disciplinesLoading = true;
   Set<int> _selectedDisciplineIds = <int>{};
 
@@ -109,51 +116,43 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
 
       if (mounted) {
         setState(() {
-          _existingAvatar = person['avatar'] as String?;
+          _existingAvatar = person.avatar;
 
-          final userData = person['user'] as Map<String, dynamic>?;
-          _emailController.text = userData?['email'] as String? ?? '';
-          _usernameController.text = userData?['username'] as String? ?? '';
-          _selectedLanguage = userData?['language'] as String? ?? 'en';
-          _selectedTimezone = userData?['timezone'] as String? ?? 'America/Caracas';
+          _emailController.text = person.user?.email ?? '';
+          _usernameController.text = person.user?.username ?? '';
+          _selectedLanguage = person.user?.language ?? 'en';
+          _selectedTimezone = person.user?.timezone ?? 'America/Caracas';
 
-          _idDocumentoController.text = person['iddocumento'] as String? ?? '';
-          _firstNameController.text = person['first_name'] as String? ?? '';
-          _lastNameController.text = person['last_name'] as String? ?? '';
-          _phoneNumberController.text = person['phone_number'] as String? ?? '';
-          _birthDateController.text = person['birth_date'] as String? ?? '';
-          _localityText = person['locality'] as String? ?? '';
+          _idDocumentoController.text = person.iddocumento ?? '';
+          _firstNameController.text = person.first_name ?? '';
+          _lastNameController.text = person.last_name ?? '';
+          _phoneNumberController.text = person.phone_number ?? '';
+          _birthDateController.text = person.birth_date ?? '';
+          _localityText = person.locality ?? '';
 
           _profiles = allProfiles;
-          final existingProfiles = (userData?['profiles'] as List<dynamic>?)
-              ?.map((p) => (p as Map<String, dynamic>)['id'] as int)
-              .toSet() ?? <int>{};
-          _selectedProfileIds = existingProfiles;
+          _selectedProfileIds = person.user?.profiles?.map((p) => p.id).toSet() ?? {};
           _profilesLoading = false;
 
           _allDisciplines = allDisciplines;
-          final existingDisciplines = (person['disciplines'] as List<dynamic>?)
-              ?.map((d) => (d as Map<String, dynamic>)['id'] as int)
-              .toSet() ?? <int>{};
-          _selectedDisciplineIds = existingDisciplines;
+          _selectedDisciplineIds = person.disciplines?.map((d) => d.id).toSet() ?? {};
           _disciplinesLoading = false;
 
           _countries = countries;
 
-          final stateData = person['state'] as Map<String, dynamic>?;
+          final stateData = person.state;
           if (stateData != null) {
-            final countryData = stateData['country'] as Map<String, dynamic>?;
-            final countryId = countryData?['id'] as int? ?? stateData['countryId'] as int?;
+            final countryId = stateData.country?.id ?? stateData.countryId;
             final matchedCountry = countryId != null
-                ? _countries.where((c) => c['id'] == countryId).firstOrNull
+                ? _countries.where((c) => c.id == countryId).firstOrNull
                 : null;
             if (matchedCountry != null) {
               _selectedCountry = matchedCountry;
-              _loadStates(matchedCountry['id'] as int).then((_) {
-                final state = _states.where((s) => s['id'] == stateData['id']).firstOrNull;
+              _loadStates(matchedCountry.id).then((_) {
+                final state = _states.where((s) => s.id == stateData.id).firstOrNull;
                 if (state != null) {
                   _selectedState = state;
-                  _loadLocalities(state['id'] as int);
+                  _loadLocalities(state.id);
                 }
               });
             }
@@ -223,7 +222,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
     setState(() => _saving = true);
 
     try {
-      await _editService.editPersonUser(
+      await _editService.editPersonUser(EditPersonRequest(
         userId: _entityId!,
         email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         language: _selectedLanguage,
@@ -234,12 +233,12 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
         phone_number: _phoneNumberController.text.trim(),
         locality: (_selectedLocality ?? _localityText).isEmpty ? null : (_selectedLocality ?? _localityText),
         birthDate: _birthDateController.text.trim().isEmpty ? null : _birthDateController.text.trim(),
-        stateId: _selectedState?['id'] as int?,
+        stateId: _selectedState?.id,
         avatarBytes: _avatarChanged ? _avatarBytes : null,
         avatarFilename: null,
         profileIds: _selectedProfileIds.toList(),
         disciplineIds: _selectedDisciplineIds.toList(),
-      );
+      ));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -309,10 +308,10 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
 
     if (confirmed == true) {
       try {
-        await _editService.changePassword(
+        await _editService.changePassword(ChangePasswordRequest(
           currentPassword: currentController.text,
           newPassword: newController.text,
-        );
+        ));
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppTranslations.of('password_changed'))),
@@ -348,7 +347,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
         await _editService.deleteAccount();
         await TokenStorage.deleteToken();
         if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppTranslations.of('account_deleted'))),
         );
@@ -378,13 +377,10 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
       context: context,
       builder: (ctx) {
         var tempSelected = Set<int>.from(_selectedDisciplineIds);
+        final searchController = TextEditingController();
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final searchController = TextEditingController();
-            String searchQuery = '';
-            searchController.addListener(() {
-              setDialogState(() => searchQuery = searchController.text.toLowerCase());
-            });
+            final searchQuery = searchController.text.toLowerCase();
             return AlertDialog(
               title: const Text('Seleccionar Disciplinas'),
               content: SizedBox(
@@ -394,6 +390,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                   children: [
                     TextField(
                       controller: searchController,
+                      onChanged: (_) => setDialogState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Buscar disciplina...',
                         prefixIcon: const Icon(Icons.search, color: Colors.white70),
@@ -414,9 +411,9 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                         crossAxisSpacing: 4,
                         childAspectRatio: 2,
                         children: _allDisciplines
-                            .where((d) => searchQuery.isEmpty || (d['name'] as String).toLowerCase().contains(searchQuery))
+                            .where((d) => searchQuery.isEmpty || d.name.toLowerCase().contains(searchQuery))
                             .map((d) {
-                          final id = (d['id'] as num).toInt();
+                          final id = d.id;
                           final checked = tempSelected.contains(id);
                           return InkWell(
                             onTap: () => setDialogState(() {
@@ -437,10 +434,10 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(_disciplineIcon(d['icon'] as String?), size: 28, color: Colors.white),
+                                  Icon(_disciplineIcon(d.icon), size: 28, color: Colors.white),
                                   const SizedBox(height: 4),
                                   Text(
-                                    d['name'] as String,
+                                    d.name,
                                     style: TextStyle(fontSize: 12, color: Colors.white),
                                     textAlign: TextAlign.center,
                                     maxLines: 2,
@@ -539,7 +536,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                                 backgroundImage: _avatarBytes != null
                                     ? MemoryImage(_avatarBytes!)
                                     : (_existingAvatar != null
-                                        ? NetworkImage('http://localhost:3000/${_existingAvatar!.replaceAll('\\', '/')}')
+                                        ? NetworkImage(ApiConfig.imageUrl(_existingAvatar!))
                                         : null),
                                 child: _avatarBytes == null && _existingAvatar == null
                                     ? const Icon(Icons.camera_alt, size: 40)
@@ -686,7 +683,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 ..._profiles.map((p) {
-                                  final id = (p['id'] as num).toInt();
+                                  final id = p.id;
                                   return CheckboxListTile(
                                     value: _selectedProfileIds.contains(id),
                                     onChanged: (checked) {
@@ -698,7 +695,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                                         }
                                       });
                                     },
-                                    title: Text(p['name'] as String),
+                                    title: Text(p.name),
                                     controlAffinity: ListTileControlAffinity.leading,
                                     contentPadding: EdgeInsets.zero,
                                   );
@@ -785,7 +782,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<Map<String, dynamic>>(
+                      DropdownButtonFormField<Country>(
                         value: _selectedCountry,
                         decoration: InputDecoration(
                           labelText: AppTranslations.of('country'),
@@ -793,7 +790,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                           border: const OutlineInputBorder(),
                         ),
                         items: _countries.map((c) {
-                          final code = c['code'] as String? ?? '';
+                          final code = c.code;
                           return DropdownMenuItem(
                             value: c,
                             child: Row(
@@ -809,7 +806,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(c['name'] as String),
+                                Text(c.name),
                               ],
                             ),
                           );
@@ -823,12 +820,12 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                             _selectedLocality = null;
                           });
                           if (value != null) {
-                            _loadStates(value['id'] as int);
+                            _loadStates(value.id);
                           }
                         },
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<Map<String, dynamic>>(
+                      DropdownButtonFormField<GeoState>(
                         value: _selectedState,
                         decoration: InputDecoration(
                           labelText: AppTranslations.of('state'),
@@ -838,7 +835,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                         items: _states.map((s) {
                           return DropdownMenuItem(
                             value: s,
-                            child: Text(s['name'] as String),
+                            child: Text(s.name),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -848,7 +845,7 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                             _localityText = '';
                           });
                           if (value != null) {
-                            _loadLocalities(value['id'] as int);
+                            _loadLocalities(value.id);
                           }
                         },
                       ),
@@ -856,10 +853,10 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                       Autocomplete<String>(
                         optionsBuilder: (textEditingValue) {
                           if (textEditingValue.text.isEmpty || _selectedState == null) {
-                            return _localities.map((l) => l['name'] as String);
+                            return _localities.map((l) => l.name);
                           }
                           return _localities
-                              .map((l) => l['name'] as String)
+                              .map((l) => l.name)
                               .where((name) => name.toLowerCase().contains(textEditingValue.text.toLowerCase()));
                         },
                         onSelected: (selection) {
@@ -913,11 +910,11 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                                     runSpacing: 4,
                                     children: _selectedDisciplineIds.map((id) {
                                       final d = _allDisciplines.firstWhere(
-                                        (d) => (d['id'] as num).toInt() == id,
+                                        (d) => d.id == id,
                                       );
                                       return Chip(
-                                        avatar: Icon(_disciplineIcon(d['icon'] as String?), size: 18, color: Colors.white),
-                                        label: Text(d['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                        avatar: Icon(_disciplineIcon(d.icon), size: 18, color: Colors.white),
+                                        label: Text(d.name, style: const TextStyle(color: Colors.white, fontSize: 12)),
                                         deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white70),
                                         onDeleted: () => setState(() => _selectedDisciplineIds.remove(id)),
                                         backgroundColor: Colors.white24,

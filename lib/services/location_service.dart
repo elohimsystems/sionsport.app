@@ -1,38 +1,47 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
+import '../models/location.dart';
 
 class LocationService {
-  static const String baseUrl = 'http://localhost:3000';
-
-  Future<List<Map<String, dynamic>>> getCountries() async {
+  Future<List<Country>> getCountries() async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api-sionsport/country'),
+      ApiConfig.uri(ApiConfig.country),
       headers: {'Content-Type': 'application/json'},
     );
     if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((e) => Country.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     throw Exception('Error al cargar países');
   }
 
-  Future<List<Map<String, dynamic>>> getStatesByCountry(int countryId) async {
+  Future<List<GeoState>> getStatesByCountry(int countryId) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api-sionsport/state/by-country/$countryId'),
+      ApiConfig.uriWithId(ApiConfig.stateByCountry, countryId),
       headers: {'Content-Type': 'application/json'},
     );
     if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((e) => GeoState.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     throw Exception('Error al cargar estados');
   }
 
-  Future<List<Map<String, dynamic>>> getLocalitiesByState(int stateId) async {
+  Future<List<Locality>> getLocalitiesByState(int stateId) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api-sionsport/locality/by-state/$stateId'),
+      ApiConfig.uriWithId(ApiConfig.localityByState, stateId),
       headers: {'Content-Type': 'application/json'},
     );
     if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((e) => Locality.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     throw Exception('Error al cargar localidades');
   }

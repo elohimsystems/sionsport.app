@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_routes.dart';
 import '../i18n/app_translations.dart';
 
 class RegisterTypeScreen extends StatelessWidget {
@@ -19,7 +20,7 @@ class RegisterTypeScreen extends StatelessWidget {
                 icon: Icons.person,
                 title: AppTranslations.of('person_registration'),
                 subtitle: AppTranslations.of('person_register_subtitle'),
-                route: '/register-user-person',
+                route: AppRoutes.registerPerson,
               ),
               const SizedBox(height: 24),
               _buildTypeCard(
@@ -27,7 +28,7 @@ class RegisterTypeScreen extends StatelessWidget {
                 icon: Icons.business,
                 title: AppTranslations.of('org_registration'),
                 subtitle: AppTranslations.of('org_register_subtitle'),
-                route: '/register-user-organization',
+                route: AppRoutes.registerOrganization,
               ),
             ],
           ),
@@ -88,7 +89,7 @@ class RegisterTypeScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/register', arguments: item);
+                        Navigator.pushNamed(context, AppRoutes.register, arguments: item);
                       },
                       child: Text(AppTranslations.of('register_btn')),
                     ),

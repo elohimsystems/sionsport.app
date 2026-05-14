@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../config/app_routes.dart';
+import '../dtos/auth_request.dart';
 import '../services/auth_service.dart';
 import '../i18n/app_translations.dart';
 
@@ -22,12 +24,12 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      final response = await _authService.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
+      await _authService.login(LoginRequest(
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+      ));
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

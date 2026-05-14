@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../config/api_config.dart';
+import '../config/app_routes.dart';
 import '../storage/token_storage.dart';
 import '../i18n/app_translations.dart';
+
+
 
 class UserMenu extends StatefulWidget {
   const UserMenu({super.key});
@@ -43,7 +47,7 @@ class _UserMenuState extends State<UserMenu> {
         _fullName = null;
         _image = null;
       });
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
     }
   }
 
@@ -51,7 +55,7 @@ class _UserMenuState extends State<UserMenu> {
   Widget build(BuildContext context) {
     final isLogged = _fullName != null;
     final imageUrl = _image != null
-        ? 'http://localhost:3000/${_image!.replaceAll('\\', '/')}'
+        ? ApiConfig.imageUrl(_image!)
         : null;
 
     return PopupMenuButton<String>(
@@ -70,16 +74,16 @@ class _UserMenuState extends State<UserMenu> {
         if (value == 'profile') {
           final target = await TokenStorage.getTarget();
           if (target == 'P') {
-            Navigator.pushNamed(context, '/edit-person');
+            Navigator.pushNamed(context, AppRoutes.editPerson);
           } else if (target == 'O') {
-            Navigator.pushNamed(context, '/edit-organization');
+            Navigator.pushNamed(context, AppRoutes.editOrganization);
           }
         }
         else if (value == 'logout') { _logout(); }
         else if (value == 'login') {
-          Navigator.pushNamed(context, '/login');
+          Navigator.pushNamed(context, AppRoutes.login);
         } else if (value == 'register') {
-          Navigator.pushNamed(context, '/register-type');
+          Navigator.pushNamed(context, AppRoutes.registerType);
         }
       },
       itemBuilder: (_) => isLogged
