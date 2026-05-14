@@ -385,25 +385,25 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
               title: const Text('Seleccionar Disciplinas'),
               content: SizedBox(
                 width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchController,
-                      onChanged: (_) => setDialogState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar disciplina...',
-                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                        filled: true,
-                        fillColor: Colors.white24,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: searchController,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar disciplina...',
+                          prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                          filled: true,
+                          fillColor: Colors.white24,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
                       ),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: GridView.count(
+                      const SizedBox(height: 12),
+                      GridView.count(
                         crossAxisCount: 4,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -449,8 +449,8 @@ class _EditUserPersonScreenState extends State<EditUserPersonScreen> {
                           );
                         }).toList(),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               actions: [
