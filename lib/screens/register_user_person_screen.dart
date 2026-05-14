@@ -40,6 +40,7 @@ class _RegisterUserPersonScreenState extends State<RegisterUserPersonScreen> {
   String? _avatarFilename;
 
   Set<int> _selectedProfileIds = <int>{};
+  Map<int, int> _selectedChildIds = {};
   List<Profile> _profiles = [];
   bool _profilesLoading = true;
 
@@ -134,7 +135,7 @@ class _RegisterUserPersonScreenState extends State<RegisterUserPersonScreen> {
     try {
       final profiles = await _profileService.getProfilesByTarget('P');
       if (mounted) setState(() {
-        _profiles = profiles;
+        _profiles = Profile.buildTree(profiles);
         _profilesLoading = false;
       });
     } catch (e) {
@@ -193,7 +194,7 @@ class _RegisterUserPersonScreenState extends State<RegisterUserPersonScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedProfileIds.isEmpty) {
+    if (_selectedProfileIds.isEmpty && _selectedChildIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppTranslations.of('select_profile'))),
       );
@@ -216,7 +217,7 @@ class _RegisterUserPersonScreenState extends State<RegisterUserPersonScreen> {
         birthDate: _birthDateController.text.trim().isEmpty ? null : _birthDateController.text.trim(),
         locality: (_selectedLocality ?? _localityText).isEmpty ? null : (_selectedLocality ?? _localityText),
         stateId: _selectedState?.id,
-        profileIds: _selectedProfileIds.join(','),
+        profileIds: {..._selectedProfileIds, ..._selectedChildIds.values}.join(','),
         language: _selectedLanguage,
         timezone: _selectedTimezone,
         disciplineIds: _selectedDisciplineIds.join(','),
@@ -571,39 +572,111 @@ class _RegisterUserPersonScreenState extends State<RegisterUserPersonScreen> {
                 const SizedBox(height: 16),
                 _profilesLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(AppTranslations.of('profiles'), style: const TextStyle(fontSize: 16)),
-                          const SizedBox(height: 8),
-                          ..._profiles.map((p) {
-                            final id = p.id;
-                            return CheckboxListTile(
-                              value: _selectedProfileIds.contains(id),
-                              onChanged: (checked) {
-                                setState(() {
-                                  if (checked == true) {
-                                    _selectedProfileIds.add(id);
-                                  } else {
-                                    _selectedProfileIds.remove(id);
-                                  }
-                                });
-                              },
-                              title: Text(p.name),
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                            );
-                          }),
-                          if (_selectedProfileIds.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                AppTranslations.of('select_profile'),
-                                style: const TextStyle(color: Colors.red, fontSize: 12),
+                    : () {
+                        final parentProfiles = _profiles.where((p) =>
+                            p.parentId == null &&
+                            p.children != null &&
+                            p.children!.isNotEmpty).toList();
+                        final leafProfiles = _profiles.where((p) =>
+                            p.parentId == null &&
+                            (p.children == null || p.children!.isEmpty)).toList();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(AppTranslations.of('profiles'), style: const TextStyle(fontSize: 16)),
+                            const SizedBox(height: 8),
+                            ...leafProfiles.map((p) {
+                              final id = p.id;
+                              return CheckboxListTile(
+                                value: _selectedProfileIds.contains(id),
+                                onChanged: (checked) {
+                                  setState(() {
+                                    if (checked == true) {
+                                      _selectedProfileIds.add(id);
+                                    } else {
+                                      _selectedProfileIds.remove(id);
+                                    }
+                                  });
+                                },
+                                title: Text(p.name),
+                                controlAffinity: ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
+                              );
+                            }),
+                            ...parentProfiles.map((parent) {
+                              final parentId = parent.id;
+                              final isParentSelected = _selectedProfileIds.contains(parentId);
+                              final selectedChildId = _selectedChildIds[parentId];
+                              final isAnySelected = isParentSelected || selectedChildId != null;
+                              final childrenEnabled = isAnySelected;
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CheckboxListTile(
+                                    value: isAnySelected,
+                                    tristate: false,
+                                    onChanged: (checked) {
+                                      setState(() {
+                                        if (checked == true) {
+                                          _selectedProfileIds.add(parentId);
+                                        } else {
+                                          _selectedProfileIds.remove(parentId);
+                                          _selectedChildIds.remove(parentId);
+                                        }
+                                      });
+                                    },
+                                    title: Text(parent.name),
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 32),
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      children: parent.children!.map((child) {
+                                        final childId = child.id;
+                                        return Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Radio<int>(
+                                              value: childId,
+                                              groupValue: selectedChildId ?? parentId,
+                                              onChanged: childrenEnabled
+                                                  ? (value) {
+                                                      setState(() {
+                                                        _selectedProfileIds.remove(parentId);
+                                                        _selectedChildIds[parentId] = value!;
+                                                      });
+                                                    }
+                                                  : null,
+                                            ),
+                                            Text(
+                                              child.name,
+                                              style: TextStyle(
+                                                color: childrenEnabled ? null : Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
+                            if (_selectedProfileIds.isEmpty && _selectedChildIds.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  AppTranslations.of('select_profile'),
+                                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
+                          ],
+                        );
+                      }(),
                 Text(
                   AppTranslations.of('personal_data'),
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
